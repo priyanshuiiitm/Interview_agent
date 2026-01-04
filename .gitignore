@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Environment Variables (Secret Keys)
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
