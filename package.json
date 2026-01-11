@@ -1,0 +1,29 @@
+{
+  "name": "interview_agent_project",
+  "version": "1.0.0",
+  "description": "AI Interview Agent Project Structure client/: React Frontend (Partner's work) server/: Node.js Backend (API & DB) agent/: Python LangGraph Agent (The Brain)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/priyanshuiiitm/Interview_agent.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/priyanshuiiitm/Interview_agent/issues"
+  },
+  "homepage": "https://github.com/priyanshuiiitm/Interview_agent#readme",
+  "dependencies": {
+    "colors": "^1.4.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "mongodb": "^7.0.0",
+    "mongoose": "^9.1.2"
+  }
+}
