@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Interview Agent</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background-color: #f4f4f9; }
+        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; }
+        .section { margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        .hidden { display: none; }
+        
+        /* Chat Box */
+        #chat-box { height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 15px; background: #fff; border-radius: 5px; margin-bottom: 15px; }
+        .message { margin: 10px 0; padding: 10px 15px; border-radius: 15px; max-width: 80%; line-height: 1.4; }
+        .bot { background-color: #e3f2fd; align-self: flex-start; margin-right: auto; border-bottom-left-radius: 2px; }
+        .user { background-color: #dcf8c6; align-self: flex-end; margin-left: auto; border-bottom-right-radius: 2px; text-align: right; }
+        
+        /* Controls */
+        .controls { display: flex; gap: 10px; }
+        input[type="text"] { flex-grow: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 10px 20px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        
+        /* Status */
+        #status-msg { margin-left: 10px; font-weight: bold; }
+        .feedback { font-size: 0.9em; color: #666; margin-top: 5px; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Interview Agent</h1>
+        
+        <!-- Setup Section -->
+        <div id="setup-section" class="section">
+            <h3>1. Setup Interview</h3>
+            <div style="margin-bottom: 15px;">
+                <label><strong>Step A:</strong> Upload Resume (PDF)</label><br>
+                <input type="file" id="resume-file" accept=".pdf" style="margin-top: 5px;">
+                <button onclick="uploadResume()">Upload</button>
+                <span id="upload-status" style="margin-left: 10px;"></span>
+            </div>
+            <div>
+                <label><strong>Step B:</strong> Enter Topic</label><br>
+                <div class="controls" style="margin-top: 5px;">
+                    <input type="text" id="topic-input" placeholder="e.g., Python, React, System Design">
+                    <button onclick="startInterview()" id="start-btn" disabled>Start Interview</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Section -->
+        <div id="chat-section" class="section hidden">
+            <h3>Interview Session</h3>
+            <div id="chat-box"></div>
+            <div class="controls">
+                <input type="text" id="user-answer" placeholder="Type your answer here..." onkeypress="handleKeyPress(event)">
+                <button onclick="sendAnswer()" id="send-btn">Send Answer</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let sessionId = null;
+
+        async function uploadResume() {
+            const fileInput = document.getElementById('resume-file');
+            if (!fileInput.files[0]) { alert("Please select a file first."); return; }
+            
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+            document.getElementById('upload-status').innerText = "Uploading...";
+            
+            try {
+                const res = await fetch('/upload-resume', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (res.ok) {
+                    document.getElementById('upload-status').innerText = "✅ Parsed!";
+                    document.getElementById('start-btn').disabled = false;
+                } else {
+                    document.getElementById('upload-status').innerText = "❌ Error";
+                }
+            } catch (e) { alert("Upload failed"); }
+        }
+
+        async function startInterview() {
+            const topic = document.getElementById('topic-input').value;
+            if (!topic) return alert("Enter a topic");
+
+            document.getElementById('start-btn').innerText = "Starting...";
+            const res = await fetch('/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ topic: topic })
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                sessionId = data.session_id;
+                document.getElementById('setup-section').classList.add('hidden');
+                document.getElementById('chat-section').classList.remove('hidden');
+                addMessage("bot", data.question);
+            } else {
+                alert("Failed to start: " + data.detail);
+            }
+        }
+
+        async function sendAnswer() {
+            const input = document.getElementById('user-answer');
+            const text = input.value.trim();
+            if (!text) return;
+
+            addMessage("user", text);
+            input.value = "";
+            document.getElementById('send-btn').disabled = true;
+
+            const res = await fetch('/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ answer: text, session_id: sessionId })
+            });
+            const data = await res.json();
+            document.getElementById('send-btn').disabled = false;
+
+            if (data.report) {
+                addMessage("bot", "Interview Finished! Report:\n" + JSON.stringify(data.report, null, 2));
+            } else {
+                if (data.feedback) addMessage("bot", "📝 Feedback: " + data.feedback);
+                addMessage("bot", data.question);
+            }
+        }
+
+        function addMessage(sender, text) {
+            const box = document.getElementById('chat-box');
+            const div = document.createElement('div');
+            div.className = `message ${sender}`;
+            div.innerText = text;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function handleKeyPress(e) { if (e.key === 'Enter') sendAnswer(); }
+    </script>
+</body>
+</html>
