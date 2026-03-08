@@ -4,16 +4,28 @@ from typing import TypedDict,Annotated,Sequence
 from langgraph.graph import StateGraph,END
 from langchain_core.messages import BaseMessage,HumanMessage,AIMessage,SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 load_dotenv()
 gemini_llm=ChatGoogleGenerativeAI(model="gemini-flash-latest",api_key=os.getenv("GEMINI_API_KEY"))
-deepseek_llm=ChatOpenAI(
-    model="deepseek-chat",
-    openai_api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com",
-    temperature=0.1
-)
+
+def _to_text(content) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                parts.append(str(item.get("text", item)))
+            else:
+                text = getattr(item, "text", None)
+                parts.append(str(text if text is not None else item))
+        return " ".join(parts).strip()
+    if isinstance(content, dict):
+        return str(content.get("text", content))
+    return str(content)
+
 class AgentState(TypedDict):
     messages:Annotated[Sequence[BaseMessage],"messages in the conversation"]
     current_question:str
@@ -35,21 +47,26 @@ def nodeC(state:AgentState):
     Question: [Your specific question]
     Hint: [A subtle hint]
     """
-    response=gemini_llm.invoke(prompt)
-    content=response.content
     try:
-        question_part=content.split("Question:")[1].split("Hint:")[0].strip()
-        hint_part=content.split("Hint:")[1].strip()
-    except IndexError:
-        question_part=content
-        hint_part="Think carefully."
+        response=gemini_llm.invoke(prompt)
+        content=_to_text(response.content)
+        try:
+            question_part=content.split("Question:")[1].split("Hint:")[0].strip()
+            hint_part=content.split("Hint:")[1].strip()
+        except IndexError:
+            question_part=content
+            hint_part="Think carefully."
+    except Exception as e:
+        print(f"Error in Question Generator Node: {e}")
+        question_part=f"Can you explain a key concept in {target_topic} with an example?"
+        hint_part="Define the concept, then share a practical use case."
     return{
         "current_question":question_part,
         "current_hint":hint_part,
         "messages":[AIMessage(content=question_part)]
     }
 def nodeD(state:AgentState):
-    print("Node D:Evaluating answer(Deepseek LLM)...")
+    print("Node D:Evaluating answer (provider=gemini)...")
     user_answer=state["messages"][-1].content
     question=state["current_question"]
     grading_prompt=f"""
@@ -67,10 +84,16 @@ def nodeD(state:AgentState):
         "next_action":"drill_deeper" OR "move_on"
     }}
     """
-    response=deepseek_llm.invoke(grading_prompt)
+    raw_eval_text=None
     try:
-        import json
-        clean_text=response.content.replace("```json", "").replace("```", "").strip()
+        response=gemini_llm.invoke(grading_prompt)
+        raw_eval_text=_to_text(response.content)
+    except Exception as e:
+        print(f"Error in Evaluator Node (Gemini): {e}")
+    if raw_eval_text is None:
+        raw_eval_text='{"score": 5, "feedback": "Temporary evaluator fallback used.", "next_action": "move_on"}'
+    try:
+        clean_text=raw_eval_text.replace("```json", "").replace("```", "").strip()
         eval_data=json.loads(clean_text)
     except:
         eval_data={"score":0,"feedback":"Parsing error","next_action":"move_on"}
@@ -123,7 +146,7 @@ def nodeB(state:AgentState):
         }
     try:
         response=gemini_llm.invoke(supervisor_prompt)
-        clean_json=response.content.replace("```json", "").replace("```", "").strip()
+        clean_json=_to_text(response.content).replace("```json", "").replace("```", "").strip()
         decision=json.loads(clean_json)
         print(f"Supervisor Decision:{decision}")
     except Exception as e:
