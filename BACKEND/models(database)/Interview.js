@@ -5,10 +5,26 @@ const interviewSchema=new mongoose.Schema({
         ref:'User',
         required:true
     },
+    agentSessionId:{
+        type:String,
+        required:true,
+    },
     role:{
         type:String,
         required:true,
-        enum:['frontend','backend','devops','datascientist','dataanalyst','fullstack-devloper']
+        enum:[
+            'frontend',
+            'backend',
+            'devops',
+            'fullstack-developer',
+            'data-analyst',
+            'data-scientist',
+            'ml-engineer',
+            'genai-engineer',
+            'app-developer',
+            'cybersecurity-engineer',
+            'blockchain-developer'
+        ]
     },
     difficulty:{
         type:String,
@@ -19,6 +35,10 @@ const interviewSchema=new mongoose.Schema({
         type:String,
         enum:['active','completed','abandoned'],
         default:'active'
+    },
+    resumeContext:{
+        type:Object,
+        default:null,
     },
     transcript:[{
         sender:{
@@ -35,10 +55,10 @@ const interviewSchema=new mongoose.Schema({
             default:Date.now
         },
         metadata:{
-            type:{type:String},
+            type:Object,
             questionId:String
-        }
-    }],
+        },
+    },],
     startTime:{
         type:Date,
         default:Date.now

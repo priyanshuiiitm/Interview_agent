@@ -3,6 +3,7 @@ import shutil
 import uuid
 from typing import List,Optional
 from fastapi import FastAPI,UploadFile,File,HTTPException,Form
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
@@ -22,6 +23,8 @@ class StartRequest(BaseModel):
     resume_context:Optional[dict]=None
 class ChatRequest(BaseModel):
     answer:str
+    session_id:str
+class EndRequest(BaseModel):
     session_id:str
 class ChatResponse(BaseModel):
     session_id:Optional[str]=None
@@ -68,12 +71,15 @@ async def start_interview(req:StartRequest):
         "current_question":"",
         "current_hint":"",
         "score":0,
+        "average_score":0,
         "feedback":"",
         "topic":req.topic,
-        "supervisor_plan":req.topic
+        "supervisor_plan":req.topic,
+        "score_history":[],
+        "interaction_logs":[]
     }
     try:
-        result=add_graph.invoke(initial_state)
+        result=await run_in_threadpool(add_graph.invoke,initial_state)
         sessions[session_id]=result
         return ChatResponse(
             session_id=session_id,
@@ -95,15 +101,17 @@ async def chat_with_agent(req:ChatRequest):
     current_state=sessions[req.session_id]
     current_state["messages"].append(HumanMessage(content=req.answer))
     try:
-        result=add_graph.invoke(current_state)
+        result=await run_in_threadpool(add_graph.invoke,current_state)
         sessions[req.session_id]=result
         last_msg=result["messages"][-1]
         if hasattr(last_msg,'content') and "END_INTERVIEW" in last_msg.content:
             print("--- Interview Ended. Generating Report (Node E) ---")
-            avg_score=result.get("score",7.5)
-            report=generate_final_report({
+            avg_score=result.get("average_score",0)
+            report=await run_in_threadpool(generate_final_report,{
                 "messages":result["messages"],
-                "average_score":avg_score
+                "average_score":avg_score,
+                "score_history":result.get("score_history",[]),
+                "interaction_logs":result.get("interaction_logs",[]),
             })
             return ChatResponse(
                 question="Thank you for your time. The interview is over.",
@@ -121,6 +129,31 @@ async def chat_with_agent(req:ChatRequest):
     except Exception as e:
         print((f"Error in chat loop: {e}"))
         raise HTTPException(status_code=500,detail="Agent error during chat")
+@app.post("/end",response_model=ChatResponse)
+async def end_interview(req:EndRequest):
+    """
+    Force ends an active interview session and generates final report.
+    """
+    if req.session_id not in sessions:
+        raise HTTPException(status_code=404,detail="session not found")
+    print(f"--- Force ending session:{req.session_id} ---")
+    current_state=sessions[req.session_id]
+    try:
+        avg_score=current_state.get("average_score",0)
+        report=await run_in_threadpool(generate_final_report,{
+            "messages":current_state.get("messages",[]),
+            "average_score":avg_score,
+            "score_history":current_state.get("score_history",[]),
+            "interaction_logs":current_state.get("interaction_logs",[]),
+        })
+        return ChatResponse(
+            question="Interview ended by user. Final report generated.",
+            hint="",
+            report=report
+        )
+    except Exception as e:
+        print((f"Error while force-ending interview: {e}"))
+        raise HTTPException(status_code=500,detail="Agent error during force end")
 if __name__=="__main__":
     print("Starting Agent Server on port 8000...")
     uvicorn.run(app,host="127.0.0.1",port=8000)

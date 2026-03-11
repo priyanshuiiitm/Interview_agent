@@ -4,7 +4,11 @@
   "description": "AI Interview Agent Project Structure client/: React Frontend (Partner's work) server/: Node.js Backend (API & DB) agent/: Python LangGraph Agent (The Brain)",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "check:frontend": "npm --prefix FRONTEND run lint",
+    "check:backend": "node --check BACKEND/server.js && node --check BACKEND/controllers/authController.js && node --check BACKEND/controllers/interviewcontroller.js && node --check BACKEND/routes/authroutes.js && node --check BACKEND/routes/interviewroutes.js && node --check BACKEND/services/agentservice.js && node --check BACKEND/middleware/auth.js && node --check BACKEND/config/db.js",
+    "check:agent": "python -m py_compile AGENT/main.py AGENT/graph.py AGENT/utils.py AGENT/python_agent.py AGENT/check_models.py",
+    "check:all": "npm run check:frontend && npm run check:backend && npm run check:agent",
+    "test": "npm run check:all"
   },
   "repository": {
     "type": "git",
@@ -19,11 +23,14 @@
   },
   "homepage": "https://github.com/priyanshuiiitm/Interview_agent#readme",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "colors": "^1.4.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "mongodb": "^7.0.0",
-    "mongoose": "^9.1.2"
+    "mongoose": "^9.1.2",
+    "multer": "^2.1.1"
   }
 }

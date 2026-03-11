@@ -16,24 +16,32 @@ const feedbackSchema=new mongoose.Schema({
         max:10
     },
     totalQuestionsAsked:{
-        type:Number
+        type:Number,
+        default:0,
     },
     scoresByTopic:[{
         topic:{type:String},
         score:{type:Number}
-    }],
+    },],
     summary:{
         type:String
     },
     strengths:{
-        type:[String]
+        type:[String],
+        default:[],
     },
     weaknesses:{
-        type:[String]
+        type:[String],
+        default:[],
+    },
+    verdict:{
+        type:String,
+        enum:["Hire","No Hire","Pending"],
+        default:"Pending",
     },
     createdAt:{
         type:Date,
-        default:Date.now
-    }
+        default:Date.now,
+    },
 });
 module.exports=mongoose.model('Feedback',feedbackSchema);
